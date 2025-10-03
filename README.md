@@ -1,6 +1,8 @@
 bgs-ext
 ========
 
+ℹ️ The BGS service was renamed to BEP. The gem is still called BGS, but elsewhere it's BEP. ℹ️
+
 `bgs-ext` is a gem that helps developers granted to be external consumers of the
 `BGS` (Benefits Gateway Services) service connect to a set of VA internal benefits related webservices,.
 
