@@ -163,11 +163,16 @@ module BGS
     # Proxy to call a method on our web service.
     def request(method, message = nil, identifier = nil)
       if mock_responses
-        raise "No identifier for mock response" if identifier.nil?
+        # Many services don't allow passing a separate identifier parameter.
+        # If mocking, we fall back to using the external_uid.
+        file_path = generate_mock_filepath(method, identifier || @external_uid)
 
-        file_path = BGS.configuration.mock_response_location
-        file_path += "/#{@service_name.underscore}/#{method}/#{identifier}.json"
-        Struct.new(:body).new(JSON.parse(File.read(file_path)).with_indifferent_access)
+        # If the file doesn't exist, use the 'default' identifier
+        file_path = generate_mock_filepath(method, 'default') unless File.exist?(file_path)
+
+        raise "Mock response file not found: #{file_path}" unless File.exist?(file_path)
+
+        Struct.new(:body).new(JSON.parse(File.read(file_path), symbolize_names: true))
       else
         client.call(method, message: message)
       end
@@ -179,6 +184,10 @@ module BGS
       handle_request_error(error)
     rescue Errno::ENOENT => error
       puts error
+    end
+
+    def generate_mock_filepath(method, identifier)
+      "#{BGS.configuration.mock_response_location}/#{@service_name.snakecase}/#{method}/#{identifier}.json"
     end
 
     def handle_request_error(error)

@@ -209,14 +209,149 @@ describe BGS::Base do
       expect(@log_out.string).to match(/I, \[.+\]  INFO -- /)
     end
   end
+
+  context 'mock responses' do
+    let(:mock_base) do
+      BGS::TestBase.new(
+        env: 'beplinktest',
+        application: 'TEST_APP',
+        client_ip: '127.0.0.1',
+        client_station_id: 283,
+        client_username: 'VACOUSERT',
+        external_uid: 'test_user_123',
+        external_key: 'test_key',
+        mock_responses: true
+      )
+    end
+    let(:mock_location) { '/tmp/bgs_mocks' }
+    let(:mock_method) { :find_person }
+    let(:mock_data) { { person_id: '12345', first_name: 'John', last_name: 'Doe' } }
+
+    before do
+      BGS.configure do |config|
+        @old_mock_location = config.mock_response_location
+        config.mock_response_location = mock_location
+      end
+    end
+
+    after do
+      BGS.configure do |config|
+        config.mock_response_location = @old_mock_location
+      end
+      FileUtils.rm_rf(mock_location)
+    end
+
+    context 'when mock_responses is enabled' do
+      context 'and a mock file exists for the identifier' do
+        before do
+          mock_file_path = "#{mock_location}/test_base/#{mock_method}/test_user_123.json"
+          FileUtils.mkdir_p(File.dirname(mock_file_path))
+          File.write(mock_file_path, mock_data.to_json)
+        end
+
+        it 'returns the mocked response from the file' do
+          response = mock_base.test_request(mock_method)
+          expect(response.body).to eq(mock_data)
+        end
+
+        it 'does not call the Savon client' do
+          expect_any_instance_of(Savon::Client).not_to receive(:call)
+          mock_base.test_request(mock_method)
+        end
+      end
+
+      context 'and a mock file exists with a custom identifier' do
+        let(:custom_identifier) { 'custom_id_456' }
+        before do
+          mock_file_path = "#{mock_location}/test_base/#{mock_method}/#{custom_identifier}.json"
+          FileUtils.mkdir_p(File.dirname(mock_file_path))
+          File.write(mock_file_path, mock_data.to_json)
+        end
+
+        it 'returns the mocked response using the custom identifier' do
+          response = mock_base.test_request(mock_method, nil, custom_identifier)
+          expect(response.body).to eq(mock_data)
+        end
+      end
+
+      context 'and no mock file exists for the identifier but a default exists' do
+        before do
+          mock_file_path = "#{mock_location}/test_base/#{mock_method}/default.json"
+          FileUtils.mkdir_p(File.dirname(mock_file_path))
+          File.write(mock_file_path, mock_data.to_json)
+        end
+
+        it 'falls back to the default mock file' do
+          response = mock_base.test_request(mock_method)
+          expect(response.body).to eq(mock_data)
+        end
+      end
+
+      context 'and no mock file exists at all' do
+        it 'raises an error with the expected file path' do
+          expected_default_path = "#{mock_location}/test_base/#{mock_method}/default.json"
+          expect do
+            mock_base.test_request(mock_method)
+          end.to raise_error(RuntimeError, "Mock response file not found: #{expected_default_path}")
+        end
+
+        it 'includes both the identifier-specific and default paths in the error flow' do
+          # First it tries with the identifier, then with 'default', then raises
+          expect(File).to receive(:exist?).with("#{mock_location}/test_base/#{mock_method}/test_user_123.json").and_return(false)
+          expect(File).to receive(:exist?).with("#{mock_location}/test_base/#{mock_method}/default.json").and_return(false)
+
+          expect do
+            mock_base.test_request(mock_method)
+          end.to raise_error(RuntimeError, /Mock response file not found/)
+        end
+      end
+    end
+
+    context 'generate_mock_filepath' do
+      it 'generates the correct file path for a given method and identifier' do
+        expected_path = "#{mock_location}/test_base/#{mock_method}/test_user_123.json"
+        actual_path = mock_base.send(:generate_mock_filepath, mock_method, 'test_user_123')
+        expect(actual_path).to eq(expected_path)
+      end
+
+      it 'generates the correct file path for the default identifier' do
+        expected_path = "#{mock_location}/test_base/#{mock_method}/default.json"
+        actual_path = mock_base.send(:generate_mock_filepath, mock_method, 'default')
+        expect(actual_path).to eq(expected_path)
+      end
+    end
+
+    context 'when mock_responses is disabled' do
+      let(:non_mock_base) do
+        BGS::TestBase.new(
+          env: 'beplinktest',
+          application: 'TEST_APP',
+          client_ip: '127.0.0.1',
+          client_station_id: 283,
+          client_username: 'VACOUSERT',
+          external_uid: 'test_user_123',
+          external_key: 'test_key',
+          mock_responses: false
+        )
+      end
+
+      it 'calls the Savon client instead of reading from file' do
+        allow_any_instance_of(Savon::Client).to receive(:call).and_return(
+          Struct.new(:body).new(mock_data)
+        )
+        expect_any_instance_of(Savon::Client).to receive(:call).with(mock_method, message: nil)
+        non_mock_base.test_request(mock_method)
+      end
+    end
+  end
 end
 # rubocop:enable Metrics/BlockLength
 
 # Helper class to allow us to test BGS::Base's private request() method.
 module BGS
   class TestBase < BGS::Base
-    def test_request(method, message = nil)
-      request(method, message)
+    def test_request(method, message = nil, identifier = nil)
+      request(method, message, identifier)
     end
   end
 end
