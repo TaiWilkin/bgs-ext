@@ -310,6 +310,7 @@ describe BGS::Base do
     context 'generate_mock_filepath' do
       it 'generates the correct file path for a given method and identifier' do
         expected_path = "#{mock_location}/test_base/#{mock_method}/test_user_123.json"
+        allow(File).to receive(:exist?).with(expected_path).and_return(true)
         actual_path = mock_base.send(:generate_mock_filepath, mock_method, 'test_user_123')
         expect(actual_path).to eq(expected_path)
       end
