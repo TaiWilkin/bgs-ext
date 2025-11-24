@@ -289,7 +289,7 @@ describe BGS::Base do
 
       context 'and no mock file exists at all' do
         it 'raises an error with the expected file path' do
-          expected_default_path = "#{mock_location}/test_base/#{mock_method}/default.json"
+          expected_default_path = "#{mock_location}/test_base/#{mock_method}/test_user_123.json"
           expect do
             mock_base.test_request(mock_method)
           end.to raise_error(RuntimeError, "Mock response file not found: #{expected_default_path}")
@@ -297,8 +297,12 @@ describe BGS::Base do
 
         it 'includes both the identifier-specific and default paths in the error flow' do
           # First it tries with the identifier, then with 'default', then raises
-          expect(File).to receive(:exist?).with("#{mock_location}/test_base/#{mock_method}/test_user_123.json").and_return(false)
-          expect(File).to receive(:exist?).with("#{mock_location}/test_base/#{mock_method}/default.json").and_return(false)
+          expect(File).to receive(:exist?).with(
+            "#{mock_location}/test_base/#{mock_method}/test_user_123.json"
+          ).and_return(false).at_least(:once)
+          expect(File).to receive(:exist?).with(
+            "#{mock_location}/test_base/#{mock_method}/default.json"
+          ).and_return(false)
 
           expect do
             mock_base.test_request(mock_method)

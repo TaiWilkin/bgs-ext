@@ -186,9 +186,10 @@ module BGS
     def generate_mock_filepath(method, identifier)
       directory = "#{BGS.configuration.mock_response_location}/#{@service_name.snakecase}/#{method}/"
       file_path = "#{directory}#{identifier}.json"
+      default_file_path = "#{directory}default.json"
 
       # fallback to default if specific file does not exist
-      file_path = "#{directory}default.json" unless File.exist?(file_path)
+      file_path = default_file_path if !File.exist?(file_path) && File.exist?(default_file_path)
 
       file_path
     end
