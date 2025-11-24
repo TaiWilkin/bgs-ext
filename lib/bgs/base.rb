@@ -167,8 +167,6 @@ module BGS
         # If mocking, we fall back to using the external_uid.
         file_path = generate_mock_filepath(method, identifier || @external_uid)
 
-        raise "Mock response file not found: #{file_path}" unless File.exist?(file_path)
-
         Struct.new(:body).new(JSON.parse(File.read(file_path), symbolize_names: true))
       else
         client.call(method, message: message)
@@ -188,10 +186,10 @@ module BGS
       file_path = "#{directory}#{identifier}.json"
       default_file_path = "#{directory}default.json"
 
-      # fallback to default if specific file does not exist
-      file_path = default_file_path if !File.exist?(file_path) && File.exist?(default_file_path)
+      # raise an error if neither specific nor default mock exists
+      raise "Mock response file not found: #{file_path}" unless File.exist?(file_path) || File.exist?(default_file_path)
 
-      file_path
+      File.exist?(file_path) ? file_path : default_file_path
     end
 
     def handle_request_error(error)
